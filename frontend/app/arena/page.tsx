@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Swords, Play, Square, RefreshCw, Loader2 } from "lucide-react";
+import { Swords, Play, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { api, type Persona, type ChatMessage } from "@/lib/api";
 
@@ -22,7 +22,7 @@ function ArenaContent() {
   const [personaBId, setPersonaBId] = useState<number | "">("");
   const [topic, setTopic] = useState("");
   const [messages, setMessages] = useState<ArenaMessage[]>([]);
-  const [running, setRunning] = useState(false);
+  const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingPersonas, setLoadingPersonas] = useState(true);
   const abortRef = useRef(false);
@@ -53,7 +53,7 @@ function ArenaContent() {
     personaAId !== "" &&
     personaBId !== "" &&
     personaAId !== personaBId &&
-    !running;
+    !started;
 
   const runTurn = async () => {
     if (abortRef.current) return;
@@ -97,45 +97,33 @@ function ArenaContent() {
           reply: "⚠️ An error occurred. Check that the backend is running.",
         },
       ]);
-      setRunning(false);
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!running) return;
-
-    const loop = async () => {
-      while (running && !abortRef.current) {
-        await runTurn();
-        if (abortRef.current) break;
-        await new Promise((r) => setTimeout(r, 1500));
-      }
-    };
-    loop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running]);
 
   const handleStart = () => {
     abortRef.current = false;
     chatHistoryRef.current = [];
     turnRef.current = "a";
     setMessages([]);
-    setRunning(true);
+    setStarted(true);
+    runTurn();
   };
 
-  const handleStop = () => {
-    abortRef.current = true;
-    setRunning(false);
+  const handleNext = () => {
+    if (loading) return;
+    runTurn();
   };
 
   const handleReset = () => {
     abortRef.current = true;
-    setRunning(false);
+    setStarted(false);
     setMessages([]);
     chatHistoryRef.current = [];
     turnRef.current = "a";
+    // Allow new runs after reset
+    setTimeout(() => { abortRef.current = false; }, 0);
   };
 
   const selectOptions = personas.map((p) => ({ value: p.id, label: p.name }));
@@ -186,7 +174,7 @@ function ArenaContent() {
                 <select
                   value={personaAId}
                   onChange={(e) => setPersonaAId(Number(e.target.value))}
-                  disabled={running}
+                  disabled={started}
                   className={clsx(
                     "w-full py-2.5 pr-3 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl text-white text-sm focus:outline-none focus:border-indigo-500/60 transition-colors appearance-none",
                     personaA ? "pl-10" : "pl-4"
@@ -221,7 +209,7 @@ function ArenaContent() {
                 <select
                   value={personaBId}
                   onChange={(e) => setPersonaBId(Number(e.target.value))}
-                  disabled={running}
+                  disabled={started}
                   className={clsx(
                     "w-full py-2.5 pr-3 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl text-white text-sm focus:outline-none focus:border-indigo-500/60 transition-colors appearance-none",
                     personaB ? "pl-10" : "pl-4"
@@ -245,7 +233,7 @@ function ArenaContent() {
               <input
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                disabled={running}
+                disabled={started}
                 placeholder="e.g. The nature of gravity"
                 className="w-full px-4 py-2.5 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl text-white placeholder-gray-600 text-sm focus:outline-none focus:border-indigo-500/60 transition-colors"
               />
@@ -253,7 +241,7 @@ function ArenaContent() {
 
             {/* Controls */}
             <div className="flex gap-2 pb-0.5">
-              {!running ? (
+              {!started ? (
                 <button
                   onClick={handleStart}
                   disabled={!canStart}
@@ -269,14 +257,20 @@ function ArenaContent() {
                 </button>
               ) : (
                 <button
-                  onClick={handleStop}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"
+                  onClick={handleNext}
+                  disabled={loading}
+                  className={clsx(
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                    loading
+                      ? "bg-[#1a1a24] border border-[#2e2e4a] text-gray-600 cursor-not-allowed"
+                      : "bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/20"
+                  )}
                 >
-                  <Square size={14} />
-                  Stop
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
+                  Next
                 </button>
               )}
-              {messages.length > 0 && !running && (
+              {started && (
                 <button
                   onClick={handleReset}
                   className="p-2.5 rounded-xl text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
@@ -292,7 +286,7 @@ function ArenaContent() {
 
       {/* Conversation */}
       <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
-        {messages.length === 0 && !running && (
+        {messages.length === 0 && !started && (
           <div className="flex flex-col items-center justify-center h-full text-center opacity-50">
             <Swords size={40} className="text-gray-600 mb-4" />
             <p className="text-gray-500 text-sm">
