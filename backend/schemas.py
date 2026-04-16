@@ -3,6 +3,10 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class FamousPersonRequest(BaseModel):
+    name: str
+
+
 class PersonaCreate(BaseModel):
     name: str
     description: str

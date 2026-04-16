@@ -13,57 +13,57 @@ const AVATAR_COLORS = [
   "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6",
 ];
 
-const FAMOUS_PEOPLE = [
-  { name: "Albert Einstein", description: "Theoretical physicist who developed the theory of relativity and made seminal contributions to quantum mechanics. Speaks with curiosity, profound insight, and often uses thought experiments to explain complex ideas. Famous for challenging conventional wisdom.", avatar_color: "#3b82f6" },
-  { name: "Isaac Newton", description: "English mathematician, physicist, and astronomer who formulated the laws of motion and universal gravitation. Precise, methodical, and deeply religious. Tends to speak in measured, formal terms and is passionate about mathematics and natural philosophy.", avatar_color: "#22c55e" },
-  { name: "Marie Curie", description: "Pioneer in radioactivity research and the first woman to win a Nobel Prize. Determined, meticulous, and unassuming. Speaks with quiet confidence and a deep commitment to scientific truth despite facing discrimination.", avatar_color: "#ec4899" },
-  { name: "Nikola Tesla", description: "Visionary inventor and electrical engineer who developed alternating current systems. Eccentric, brilliant, and often misunderstood. Speaks with intense passion about electricity, energy, and the future of humanity.", avatar_color: "#f97316" },
-  { name: "Leonardo da Vinci", description: "Renaissance polymath: painter, sculptor, architect, musician, mathematician, engineer, and scientist. Endlessly curious and observant, always drawing connections between art and science. Speaks poetically and asks many questions.", avatar_color: "#eab308" },
-  { name: "Cleopatra VII", description: "Last active ruler of the Ptolemaic Kingdom of Egypt. Brilliant strategist, polyglot, and charismatic leader who used diplomacy and intelligence as her primary weapons. Speaks with authority, wit, and political acuity.", avatar_color: "#8b5cf6" },
-  { name: "Socrates", description: "Ancient Greek philosopher who used dialogue and questioning (the Socratic method) to pursue truth. Never claims to know the answers, preferring to draw wisdom out through questions. Speaks humbly yet pointedly.", avatar_color: "#f43f5e" },
-  { name: "Ada Lovelace", description: "Mathematician and the world's first computer programmer, who worked with Charles Babbage on the Analytical Engine. Visionary, imaginative, and analytically precise. Speaks enthusiastically about the potential of machines to create.", avatar_color: "#14b8a6" },
-];
-
 export default function CreatePage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("custom");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedColor, setSelectedColor] = useState(AVATAR_COLORS[0]);
-  const [selectedFamous, setSelectedFamous] = useState<(typeof FAMOUS_PEOPLE)[0] | null>(null);
+  const [famousName, setFamousName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async () => {
     setError("");
-    const payload =
-      tab === "custom"
-        ? { name: name.trim(), description: description.trim(), type: "custom", avatar_color: selectedColor }
-        : {
-            name: selectedFamous!.name,
-            description: selectedFamous!.description,
-            type: "famous",
-            avatar_color: selectedFamous!.avatar_color,
-          };
 
-    if (!payload.name || !payload.description) {
-      setError("Please fill in all fields.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await api.personas.create(payload);
-      router.push("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create persona.");
-    } finally {
-      setSubmitting(false);
+    if (tab === "custom") {
+      if (!name.trim() || !description.trim()) {
+        setError("Please fill in all fields.");
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await api.personas.create({
+          name: name.trim(),
+          description: description.trim(),
+          type: "custom",
+          avatar_color: selectedColor,
+        });
+        router.push("/");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to create persona.");
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      if (!famousName.trim()) {
+        setError("Please enter a name.");
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await api.personas.createFamous(famousName.trim());
+        router.push("/");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to create persona.");
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
   const customValid = name.trim().length > 0 && description.trim().length > 0;
-  const famousValid = selectedFamous !== null;
+  const famousValid = famousName.trim().length > 0;
   const canSubmit = tab === "custom" ? customValid : famousValid;
 
   return (
@@ -165,41 +165,42 @@ export default function CreatePage() {
 
       {/* Famous tab */}
       {tab === "famous" && (
-        <div className="grid grid-cols-1 gap-3">
-          {FAMOUS_PEOPLE.map((person) => (
-            <button
-              key={person.name}
-              onClick={() =>
-                setSelectedFamous(selectedFamous?.name === person.name ? null : person)
-              }
-              className={clsx(
-                "flex items-start gap-4 p-4 rounded-xl border text-left transition-all",
-                selectedFamous?.name === person.name
-                  ? "border-indigo-500/60 bg-indigo-500/10"
-                  : "border-[#2e2e4a] bg-[#1a1a24] hover:border-[#3e3e5a]"
-              )}
-            >
-              <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-base shrink-0 mt-0.5"
-                style={{ backgroundColor: person.avatar_color }}
-              >
-                {person.name.charAt(0)}
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Famous Person&apos;s Name
+            </label>
+            <input
+              value={famousName}
+              onChange={(e) => setFamousName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && canSubmit && !submitting && handleSubmit()}
+              placeholder="e.g. Marie Curie, Nikola Tesla, Cleopatra…"
+              className="w-full px-4 py-3 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/30 transition-colors text-sm"
+            />
+            <p className="text-xs text-gray-600 mt-1.5">
+              Any real public figure — historical or contemporary. We&apos;ll verify the name and
+              fetch a biography automatically.
+            </p>
+          </div>
+
+          {submitting && (
+            <div className="flex items-center gap-3 p-4 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl">
+              <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
+              <p className="text-sm text-gray-400">Verifying &amp; fetching biography…</p>
+            </div>
+          )}
+
+          {famousName.trim() && !submitting && (
+            <div className="flex items-center gap-3 p-4 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-base shrink-0 bg-indigo-500">
+                {famousName.trim().charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">{person.name}</p>
-                <p className="text-xs text-gray-500 line-clamp-2 mt-0.5 leading-relaxed">
-                  {person.description}
-                </p>
+              <div>
+                <p className="text-sm font-semibold text-white">{famousName.trim()}</p>
+                <p className="text-xs text-gray-500">Biography will be fetched on creation</p>
               </div>
-              {selectedFamous?.name === person.name && (
-                <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                    <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              )}
-            </button>
-          ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -221,7 +222,11 @@ export default function CreatePage() {
             : "bg-[#1a1a24] text-gray-600 cursor-not-allowed border border-[#2e2e4a]"
         )}
       >
-        {submitting ? "Creating..." : "Create Persona"}
+        {submitting
+          ? tab === "famous"
+            ? "Verifying & fetching bio…"
+            : "Creating…"
+          : "Create Persona"}
         {!submitting && <ChevronRight size={16} />}
       </button>
     </div>

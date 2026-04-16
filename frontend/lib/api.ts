@@ -39,6 +39,8 @@ export const api = {
     get: (id: number) => request<Persona>(`/personas/${id}`),
     create: (body: { name: string; description: string; type: string; avatar_color: string }) =>
       request<Persona>("/personas", { method: "POST", body: JSON.stringify(body) }),
+    createFamous: (name: string) =>
+      request<Persona>("/personas/famous", { method: "POST", body: JSON.stringify({ name }) }),
     delete: (id: number) =>
       request<void>(`/personas/${id}`, { method: "DELETE" }),
   },
