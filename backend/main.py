@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine
 from routers import personas, chat
+from routers import arena
 
 Base.metadata.create_all(bind=engine)
 
@@ -17,6 +18,7 @@ app.add_middleware(
 
 app.include_router(personas.router)
 app.include_router(chat.router)
+app.include_router(arena.router)
 
 
 @app.get("/health")

@@ -1,65 +1,61 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
-import { api, type Persona, type ChatMessage } from "@/lib/api";
-import ChatBubble from "@/components/ChatBubble";
+import { ArrowLeft, MessageSquare, Plus, Trash2, Loader2 } from "lucide-react";
+import { api, type Persona, type ChatOut } from "@/lib/api";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
-export default function ChatPage({ params }: Props) {
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export default function ChatHistoryPage({ params }: Props) {
   const { id } = use(params);
   const personaId = Number(id);
+  const router = useRouter();
 
   const [persona, setPersona] = useState<Persona | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [chats, setChats] = useState<ChatOut[]>([]);
   const [loadingPersona, setLoadingPersona] = useState(true);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
-    api.personas
-      .get(personaId)
-      .then(setPersona)
-      .finally(() => setLoadingPersona(false));
+    api.personas.get(personaId).then(setPersona).finally(() => setLoadingPersona(false));
+    api.chats.listForPersona(personaId).then(setChats).finally(() => setLoadingChats(false));
   }, [personaId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
-
-  const send = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-
-    const userMsg: ChatMessage = { role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setLoading(true);
-
+  const handleDeleteChat = async (e: React.MouseEvent, chatId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeletingId(chatId);
     try {
-      const { reply } = await api.chat.send(personaId, text, [...messages, userMsg]);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "⚠️ Something went wrong. Please try again." },
-      ]);
+      await api.chats.delete(chatId);
+      setChats((prev) => prev.filter((c) => c.id !== chatId));
     } finally {
-      setLoading(false);
-      textareaRef.current?.focus();
+      setDeletingId(null);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
+  const handleNewChat = async () => {
+    setStarting(true);
+    try {
+      const chat = await api.chats.create(personaId);
+      router.push(`/chat/${personaId}/${chat.id}`);
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -75,9 +71,7 @@ export default function ChatPage({ params }: Props) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <p className="text-gray-400">Persona not found.</p>
-        <Link href="/" className="text-indigo-400 hover:underline text-sm">
-          Back to dashboard
-        </Link>
+        <Link href="/" className="text-indigo-400 hover:underline text-sm">Back to dashboard</Link>
       </div>
     );
   }
@@ -98,84 +92,76 @@ export default function ChatPage({ params }: Props) {
         >
           {persona.name.charAt(0).toUpperCase()}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-sm font-semibold text-white">{persona.name}</h1>
           <p className="text-xs text-gray-500 capitalize">{persona.type} persona</p>
         </div>
+        <button
+          onClick={handleNewChat}
+          disabled={starting}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-60 text-white text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20"
+        >
+          {starting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          New Chat
+        </button>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center gap-3 opacity-60">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-bold"
-              style={{ backgroundColor: persona.avatar_color }}
-            >
-              {persona.name.charAt(0).toUpperCase()}
-            </div>
+      {/* Session list */}
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        {loadingChats ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="animate-spin text-indigo-400" size={24} />
+          </div>
+        ) : chats.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center gap-4 opacity-60">
+            <MessageSquare size={40} className="text-gray-600" />
             <div>
-              <p className="text-white font-medium">{persona.name}</p>
-              <p className="text-gray-500 text-sm mt-0.5">
-                Say something to start the conversation.
-              </p>
+              <p className="text-white font-medium">No conversations yet</p>
+              <p className="text-gray-500 text-sm mt-1">Start a new chat to begin talking with {persona.name}.</p>
             </div>
           </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <ChatBubble
-            key={i}
-            role={msg.role}
-            content={msg.content}
-            personaName={persona.name}
-            avatarColor={persona.avatar_color}
-          />
-        ))}
-
-        {loading && (
-          <div className="flex gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-              style={{ backgroundColor: persona.avatar_color }}
-            >
-              {persona.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="bg-[#22223a] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce [animation-delay:300ms]" />
-            </div>
+        ) : (
+          <div className="space-y-3 max-w-2xl mx-auto">
+            {chats.map((chat) => (
+              <div key={chat.id} className="relative group">
+                <Link
+                  href={`/chat/${personaId}/${chat.id}`}
+                  className="flex items-start gap-4 p-4 rounded-xl border border-[#2e2e4a] bg-[#1a1a24] hover:border-indigo-500/40 hover:bg-[#1e1e2e] transition-all"
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0 mt-0.5"
+                    style={{ backgroundColor: persona.avatar_color }}
+                  >
+                    {persona.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0 pr-8">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <p className="text-sm font-medium text-white">
+                        {formatDate(chat.created_at)}
+                      </p>
+                      <span className="text-xs text-gray-600 shrink-0">
+                        {chat.message_count} message{chat.message_count !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">
+                      {chat.last_message ?? "No messages yet"}
+                    </p>
+                  </div>
+                </Link>
+                <button
+                  onClick={(e) => handleDeleteChat(e, chat.id)}
+                  disabled={deletingId === chat.id}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all"
+                  aria-label="Delete chat"
+                >
+                  {deletingId === chat.id
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Trash2 size={14} />}
+                </button>
+              </div>
+            ))}
           </div>
         )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div className="px-6 py-4 border-t border-[#2e2e4a] bg-[#0f0f13] shrink-0">
-        <div className="flex gap-3 items-end max-w-3xl mx-auto">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${persona.name}...`}
-            rows={1}
-            className="flex-1 px-4 py-3 bg-[#1a1a24] border border-[#2e2e4a] rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/20 transition-colors text-sm resize-none leading-relaxed"
-            style={{ maxHeight: "8rem" }}
-          />
-          <button
-            onClick={send}
-            disabled={!input.trim() || loading}
-            className="p-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-[#1a1a24] disabled:text-gray-600 text-white transition-colors shrink-0"
-          >
-            <Send size={16} />
-          </button>
-        </div>
-        <p className="text-xs text-gray-700 text-center mt-2">
-          Press Enter to send · Shift+Enter for new line
-        </p>
       </div>
     </div>
   );

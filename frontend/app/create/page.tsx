@@ -15,7 +15,7 @@ const AVATAR_COLORS = [
 
 export default function CreatePage() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("custom");
+  const [tab, setTab] = useState<Tab>("famous");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedColor, setSelectedColor] = useState(AVATAR_COLORS[0]);
@@ -77,7 +77,7 @@ export default function CreatePage() {
 
       {/* Tabs */}
       <div className="flex bg-[#1a1a24] border border-[#2e2e4a] rounded-xl p-1 mb-6">
-        {(["custom", "famous"] as Tab[]).map((t) => (
+        {(["famous", "custom"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}

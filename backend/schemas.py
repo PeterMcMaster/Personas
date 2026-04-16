@@ -1,7 +1,11 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 from pydantic import BaseModel
 
+
+# ---------------------------------------------------------------------------
+# Persona schemas
+# ---------------------------------------------------------------------------
 
 class FamousPersonRequest(BaseModel):
     name: str
@@ -25,29 +29,106 @@ class PersonaOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
+# ---------------------------------------------------------------------------
+# Persona chat schemas
+# ---------------------------------------------------------------------------
+
+class CreateChatRequest(BaseModel):
+    persona_id: int
+
+
+class MessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ChatOut(BaseModel):
+    id: int
+    persona_id: int
+    created_at: datetime
+    message_count: int
+    last_message: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ChatDetailOut(BaseModel):
+    id: int
+    persona_id: int
+    created_at: datetime
+    messages: list[MessageOut]
+
+    model_config = {"from_attributes": True}
+
+
+class SendMessageRequest(BaseModel):
     content: str
 
 
-class ChatRequest(BaseModel):
-    message: str
-    history: list[ChatMessage] = []
+class SendMessageResponse(BaseModel):
+    user_message: MessageOut
+    assistant_message: MessageOut
 
 
-class ChatResponse(BaseModel):
-    reply: str
+# ---------------------------------------------------------------------------
+# Arena schemas
+# ---------------------------------------------------------------------------
 
-
-class ArenaRequest(BaseModel):
+class CreateArenaSessionRequest(BaseModel):
     persona_a_id: int
     persona_b_id: int
     topic: str = ""
-    history: list[ChatMessage] = []
-    next_speaker: Literal["a", "b"] = "a"
 
 
-class ArenaResponse(BaseModel):
+class ArenaMsgOut(BaseModel):
+    id: int
+    session_id: int
     speaker_id: int
     speaker_name: str
-    reply: str
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ArenaSessionOut(BaseModel):
+    id: int
+    persona_a_id: int
+    persona_b_id: int
+    topic: str
+    created_at: datetime
+    message_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class ArenaSessionDetailOut(BaseModel):
+    id: int
+    persona_a_id: int
+    persona_b_id: int
+    topic: str
+    created_at: datetime
+    messages: list[ArenaMsgOut]
+
+    model_config = {"from_attributes": True}
+
+
+class RunArenaTurnRequest(BaseModel):
+    next_speaker: Literal["a", "b"]
+
+
+class SaveArenaUserMessageRequest(BaseModel):
+    content: str
+
+
+# ---------------------------------------------------------------------------
+# Legacy — kept for internal LLM helpers only
+# ---------------------------------------------------------------------------
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
